@@ -3,7 +3,8 @@ from argparse import ArgumentParser, FileType
 from sys import exit, stdin, stderr
 from os import path, listdir
 from sklearn.decomposition import PCA, ProbabilisticPCA
-from lightcurve_pca.pca import make_pipeline, pca, reconstruct_lightcurve
+from lightcurve_pca.pca import (make_pipeline, pca, reconstruct_lightcurve,
+                                parameter_plot)
 
 def get_args():
     parser = ArgumentParser()
@@ -66,6 +67,13 @@ def get_args():
     method_choices = {'PCA': PCA,
                       'ProbabilisticPCA': ProbabilisticPCA}
     args.pipeline = make_pipeline(method_choices[args.method], **args.__dict__)
+    if args.periods is not None:
+        periods = {name: float(period) for (name, period)
+                   in (line.strip().split() for line
+                   # generalize to all whitespace instead of just spaces
+                   in args.periods if ' ' in line)}
+        args.periods.close()
+        args.periods = periods
 
     return args
 
@@ -83,8 +91,9 @@ def main():
                                 usecols=range(1,cols), dtype=float)
     components, eigenvectors, col_std, col_mean = pca(lightcurves,
                                                       args.pipeline)
+    periods = [args.periods[name] for name in names]
     if args.parameter_plots:
-        for p in range(*args.parameter_range):
+        for p in range(args.parameter_range[0], args.parameter_range[1]+1):
             name = 'PC{}'.format(p)
             parameter_plot(name=name, parameter=components[:,p],
                            periods=periods, output=args.parameter_plots)
