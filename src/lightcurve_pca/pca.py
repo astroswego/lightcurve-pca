@@ -6,6 +6,7 @@ from os import path
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, scale
 from sklearn.decomposition import PCA
+from .periodogram import rephase, get_phase
 from .preprocessing import Normalizer
 from .utils import make_sure_path_exists
 
@@ -41,7 +42,9 @@ def pca(X, pipeline, reconstruct_orders):
     return components, eig, reconstructed_lightcurves
 
 def plot_lightcurve(name, lc, phases, reconstructs, reconstruct_orders,
-                    period=0.0, data=None, legend=True,
+                    period=0.0, legend=True, plot_original_lightcurve=True,
+                    observations=None, observation_extension=None,
+                    usecols=range(3),
                     output='.', filetype='.png'):
     fig = plt.figure()
     ax = fig.gca()
@@ -50,12 +53,33 @@ def plot_lightcurve(name, lc, phases, reconstructs, reconstruct_orders,
     ax.set_xlim(0, 2)
     two_phases = numpy.hstack((phases, 1+phases))
 
-    # Plot the original light curve
-    ax.plot(two_phases, numpy.hstack((lc, lc)),
-            color='black', label='Light Curve')
-
     # Plot observed points
-    ## TODO
+    if observations is not None:
+        data = numpy.loadtxt(path.join(observations,
+                                       name+observation_extension),
+                             usecols=usecols, dtype=float)
+        data = rephase(data, period)
+        arg_max_light = data.T[1].argmin()
+#        exit(print(data.T[1].shape))
+        # shift to max light
+        data.T[0] = numpy.fromiter((get_phase(p, 1.0,
+                                              data[arg_max_light,0])
+                                    for p in data.T[0]),
+                                   numpy.float, len(data.T[0]))
+        phase, mag, err = data.T
+
+        ax.errorbar(numpy.hstack((phase, 1+phase)),
+                    numpy.hstack((mag, mag)),
+                    yerr=numpy.hstack((err, err)),
+                    color='black', ls='None',
+                    ms=0.01, mew=0.01, capsize=0,
+                    label='Observations')
+
+    # Plot the original light curve
+    if plot_original_lightcurve:
+        ax.plot(two_phases, numpy.hstack((lc, lc)),
+                linewidth=1.5, color='black', label='Light Curve')
+
 
     # Plot reconstructed lightcurves
     for n, rec in zip(reconstruct_orders, reconstructs):

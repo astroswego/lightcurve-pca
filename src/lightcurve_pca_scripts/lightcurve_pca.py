@@ -12,6 +12,7 @@ def get_args():
     input_group = parser.add_argument_group('Input')
     output_group = parser.add_argument_group('Output')
     pca_group = parser.add_argument_group('PCA')
+    plot_group = parser.add_argument_group('Plot')
 
     parser.add_argument('reconstruct_orders', type=int, nargs='*',
         default=[1, 3, 7, 10],
@@ -29,6 +30,14 @@ def get_args():
         help='Directory containing stellar observations. If nothing is '
              'provided, lightcurves are reconstructed without observed data '
              '(default = None)')
+    input_group.add_argument('--observation-extension', type=str,
+        default='.dat',
+        help='Extension of observation files '
+             '(default = .dat)')
+    input_group.add_argument('--usecols', type=int, nargs=3,
+        default=range(3), metavar=['TIME', 'MAG', 'ERR'],
+        help='Columns to use in observation files '
+             '(default = 0 1 2)')
     input_group.add_argument('--periods', type=FileType('r'),
         default=None,
         help='File listing star periods. Only necessary if lightcurves are to '
@@ -49,10 +58,6 @@ def get_args():
     output_group.add_argument('--parameter-plots',  type=str,
         help='Directory to output parameter plots '
              '(default = None)')
-    output_group.add_argument('--parameter-range', type=int, nargs=2,
-        default=(1,2),
-        help='Range (inclusive) of parameters to plot against periods '
-             '(default = 1 2)')
     pca_group.add_argument('--n-components', type=float,
         default=None,
         help='Number of components to keep from the PCA. Keeps all components '
@@ -69,12 +74,20 @@ def get_args():
         default=False,
         help='Whiten the data '
              '(default = False)')
+    plot_group.add_argument('--parameter-range', type=int, nargs=2,
+        default=(1,2),
+        help='Range (inclusive) of parameters to plot against periods '
+             '(default = 1 2)')
+    plot_group.add_argument('--plot-original-lightcurve',
+        default=False,
+        help='Include the original lightcurve in the plot '
+             '(default = False)')
 
     args = parser.parse_args()
 
     method_choices = {'PCA': PCA,
                       'ProbabilisticPCA': ProbabilisticPCA}
-    args.pipeline = make_pipeline(method_choices[args.method], **args.__dict__)
+    args.pipeline = make_pipeline(method_choices[args.method], **vars(args))
     if args.periods is not None:
         periods = {name: float(period) for (name, period)
                    in (line.strip().split() for line
@@ -92,9 +105,7 @@ def main():
         first_line = f.readline().strip().split()
         cols = len(first_line)
         names = [first_line[0]] + [line.strip().split()[0] for line in f]
-    
-#    names = numpy.loadtxt(args.lightcurves,
-#                          usecols=(0,), dtype=str, unpack=True)
+
     lightcurves = numpy.loadtxt(args.lightcurves,
                                 usecols=range(1,cols), dtype=float)
     components, eigenvectors, reconstructs =  pca(lightcurves, args.pipeline,
@@ -112,16 +123,20 @@ def main():
     formatter = lambda x: args.fmt % x
     phases = numpy.arange(0, 1, 1/lightcurves.shape[1])
     pmap(process_star,
-         zip(names, components, lightcurves, reconstructs),
+         zip(names, periods, components, lightcurves, reconstructs),
          reconstruct_orders=args.reconstruct_orders,
          processes=args.processes,
          callback=_star_printer(args.fmt),
          phases=phases,
-         output=args.reconstruct_plots)
+         plot_original_lightcurve=args.plot_original_lightcurve,
+         output=args.reconstruct_plots,
+         observations=args.observations,
+         observation_extension=args.observation_extension)
 
 def process_star(star, **kwargs):
-    name, components, lightcurve, reconstruct = star
+    name, period, components, lightcurve, reconstruct = star
     plot_lightcurve(name=name, lc=lightcurve, reconstructs=reconstruct,
+                    period=period,
                     **kwargs)
     return name, components
 
