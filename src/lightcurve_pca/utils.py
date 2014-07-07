@@ -1,5 +1,6 @@
 from os import makedirs
 from os.path import isdir
+from multiprocessing import Pool
 
 __all__ = [
     'pmap',
