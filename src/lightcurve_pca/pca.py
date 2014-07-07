@@ -60,10 +60,9 @@ def plot_lightcurve(name, lc, phases, reconstructs, reconstruct_orders,
                              usecols=usecols, dtype=float)
         data = rephase(data, period)
         arg_max_light = data.T[1].argmin()
-#        exit(print(data.T[1].shape))
+        time_of_max_brightness = data[arg_max_light,0]
         # shift to max light
-        data.T[0] = numpy.fromiter((get_phase(p, 1.0,
-                                              data[arg_max_light,0])
+        data.T[0] = numpy.fromiter((get_phase(p, 1.0, time_of_max_brightness)
                                     for p in data.T[0]),
                                    numpy.float, len(data.T[0]))
         phase, mag, err = data.T
