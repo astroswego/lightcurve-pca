@@ -5,6 +5,7 @@ from os import path, listdir
 from sklearn.decomposition import PCA, ProbabilisticPCA
 from lightcurve_pca.pca import (make_pipeline, pca, reconstruct_lightcurve,
                                 parameter_plot)
+from lightcurve_pca.utils import pmap
 
 def get_args():
     parser = ArgumentParser()
@@ -14,18 +15,24 @@ def get_args():
 
     parser.add_argument('reconstruct_components', type=int, nargs='*',
         default=[1, 3, 7, 10],
-        help='list of numbers of components to use in lightcurve reconstruction '
+        help='list of numbers of components to use in lightcurve '
+             'reconstruction '
              '(default = 1 3 7 10)')
+    parser.add_argument('-p', '--processes', type=int,
+        default=1, metavar='N',
+        help='number of stars to plot in parallel '
+             '(default = 1)')
     input_group.add_argument('-l', '--lightcurves', type=str,
-        help='File containing table of lightcurves, with star ID in first column')
+        help='File containing table of lightcurves, with star ID in first '
+             'column')
     input_group.add_argument('--observations', type=str,
-        help='Directory containing stellar observations. If nothing is provided, '
-             'lightcurves are reconstructed without observed data '
+        help='Directory containing stellar observations. If nothing is '
+             'provided, lightcurves are reconstructed without observed data '
              '(default = None)')
     input_group.add_argument('--periods', type=FileType('r'),
         default=None,
-        help='File listing star periods. Only necessary if lightcurves are to be '
-             'reconstructed from observed data '
+        help='File listing star periods. Only necessary if lightcurves are to '
+             'be reconstructed from observed data '
              '(default = None)')
     output_group.add_argument('-f', '--fmt', type=str,
         default='%.5f',
@@ -48,10 +55,11 @@ def get_args():
              '(default = 1 2)')
     pca_group.add_argument('--n-components', type=float,
         default=None,
-        help='Number of components to keep from the PCA. Keeps all components if '
-             'none specified. If 0 < n_components < 1, selects the number of '
-             'components such that the amount of variance that needs to be '
-             'explained is greater than the percentage specified by n_components '
+        help='Number of components to keep from the PCA. Keeps all components '
+             'if none specified. If 0 < n_components < 1, selects the number '
+             'of components such that the amount of variance that needs to be '
+             'explained is greater than the percentage specified by '
+             'n_components '
              '(default = None)')
     pca_group.add_argument('--method', type=str,
         choices=['PCA', 'ProbabilisticPCA'], default='PCA',
@@ -100,15 +108,26 @@ def main():
 
     formatter = lambda x: args.fmt % x
     phases = numpy.arange(0, 1, 1/lightcurves.shape[1])
-    for name, comps, lc in zip(names, components, lightcurves):
-        print(name, ' '.join(map(formatter, comps)))
-        if args.reconstruct_plots:
-            reconstruct_lightcurve(name=name,
-                lc=lc, phases=phases,
-                components=comps, eigenvectors=eigenvectors,
-                col_std=col_std, col_mean=col_mean,
-                reconstruct_components=args.reconstruct_components,
-                output=args.reconstruct_plots)
+    pmap(process_star, zip(names, components, lightcurves),
+         processes=args.processes,
+         callback=_star_printer(args.fmt),
+         phases=phases, eigenvectors=eigenvectors,
+         col_std=col_std, col_mean=col_mean,
+         reconstruct_components=args.reconstruct_components,
+         output=args.reconstruct_plots)
 
     if args.eigenvectors:
         numpy.savetxt(args.eigenvectors, eigenvectors, fmt=args.fmt)
+
+def process_star(star, **kwargs):
+    name, components, lightcurve = star
+    reconstruct_lightcurve(name=name, lc=lightcurve, components=components,
+                           **kwargs)
+    return name, components
+
+def _star_printer(fmt):
+    return lambda name_and_components: _print_star(name_and_components, fmt)
+        
+def _print_star(name_and_components, fmt):
+    name, components = name_and_components
+    print(name, ' '.join(fmt % comp for comp in components))
