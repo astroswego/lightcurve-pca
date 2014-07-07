@@ -21,20 +21,20 @@ def make_pipeline(PCA_method, n_components, whiten, **kwargs):
 
     return pipeline
 
-def pca(X, pipeline, reconstruct_components):
+def pca(X, pipeline, reconstruct_orders):
 #    mean_subtracted_X = scale(X, axis=1, with_mean=True, with_std=False)
 #    pcs = pipeline.fit(mean_subtracted_X).transform(mean_subtracted_X)
     components = pipeline.fit_transform(X)
     eig = pipeline.named_steps['PCA'].components_
 
     reconstructed_lightcurves = numpy.empty((X.shape[0],
-                                             len(reconstruct_components),
+                                             len(reconstruct_orders),
                                              X.shape[1]),
                                             dtype=float)
-    
-    for i, n in enumerate(reconstruct_components):
+    for i, n in enumerate(reconstruct_orders):
         pipeline.set_params(PCA__n_components=n)
-        reconstructed_lightcurves[:, i, :] = pipeline.inverse_transform(X)
+        comp = pipeline.fit_transform(X)
+        reconstructed_lightcurves[:, i, :] = pipeline.inverse_transform(comp)
 
     return components, eig, reconstructed_lightcurves
 
@@ -50,7 +50,7 @@ def plot_lightcurve(name, lc, phases, reconstructs, reconstruct_orders,
 
     # Plot the original light curve
     ax.plot(two_phases, numpy.hstack((lc, lc)),
-            color='green', label='Light Curve')
+            color='black', label='Light Curve')
 
     # Plot observed points
     ## TODO

@@ -13,7 +13,7 @@ def get_args():
     output_group = parser.add_argument_group('Output')
     pca_group = parser.add_argument_group('PCA')
 
-    parser.add_argument('reconstruct_components', type=int, nargs='*',
+    parser.add_argument('reconstruct_orders', type=int, nargs='*',
         default=[1, 3, 7, 10],
         help='list of numbers of components to use in lightcurve '
              'reconstruction '
@@ -98,7 +98,7 @@ def main():
     lightcurves = numpy.loadtxt(args.lightcurves,
                                 usecols=range(1,cols), dtype=float)
     components, eigenvectors, reconstructs =  pca(lightcurves, args.pipeline,
-                                                  args.reconstruct_components)
+                                                  args.reconstruct_orders)
     periods = [args.periods[name] for name in names]
     if args.eigenvectors:
         numpy.savetxt(args.eigenvectors, eigenvectors, fmt=args.fmt)
@@ -113,7 +113,7 @@ def main():
     phases = numpy.arange(0, 1, 1/lightcurves.shape[1])
     pmap(process_star,
          zip(names, components, lightcurves, reconstructs),
-         reconstruct_orders=args.reconstruct_components,
+         reconstruct_orders=args.reconstruct_orders,
          processes=args.processes,
          callback=_star_printer(args.fmt),
          phases=phases,
