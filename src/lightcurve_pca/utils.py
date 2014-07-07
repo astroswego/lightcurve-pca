@@ -1,10 +1,13 @@
 from os import makedirs
 from os.path import isdir
 from multiprocessing import Pool
+from numpy import resize
 
 __all__ = [
     'pmap',
-    'make_sure_path_exists'
+    'make_sure_path_exists',
+    'colvec',
+    'rowvec'
 ]
 
 def pmap(func, args, processes=None, callback=lambda *x: None, **kwargs):
@@ -31,3 +34,9 @@ def make_sure_path_exists(path):
     except OSError:
       if not isdir(path):
         raise
+
+def colvec(X):
+    return resize(X, (X.shape[0], 1))
+
+def rowvec(X):
+    return resize(X, (1, X.shape[0]))[0]

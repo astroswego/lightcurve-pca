@@ -3,7 +3,7 @@ from argparse import ArgumentParser, FileType
 from sys import exit, stdin, stderr
 from os import path, listdir
 from sklearn.decomposition import PCA, ProbabilisticPCA
-from lightcurve_pca.pca import (make_pipeline, pca, reconstruct_lightcurve,
+from lightcurve_pca.pca import (make_pipeline, pca, plot_lightcurve,
                                 parameter_plot)
 from lightcurve_pca.utils import pmap
 
@@ -97,9 +97,12 @@ def main():
 #                          usecols=(0,), dtype=str, unpack=True)
     lightcurves = numpy.loadtxt(args.lightcurves,
                                 usecols=range(1,cols), dtype=float)
-    components, eigenvectors, col_std, col_mean = pca(lightcurves,
-                                                      args.pipeline)
+    components, eigenvectors, reconstructs =  pca(lightcurves, args.pipeline,
+                                                  args.reconstruct_components)
     periods = [args.periods[name] for name in names]
+    if args.eigenvectors:
+        numpy.savetxt(args.eigenvectors, eigenvectors, fmt=args.fmt)
+
     if args.parameter_plots:
         for p in range(args.parameter_range[0], args.parameter_range[1]+1):
             name = 'PC{}'.format(p)
@@ -108,26 +111,23 @@ def main():
 
     formatter = lambda x: args.fmt % x
     phases = numpy.arange(0, 1, 1/lightcurves.shape[1])
-    pmap(process_star, zip(names, components, lightcurves),
+    pmap(process_star,
+         zip(names, components, lightcurves, reconstructs),
+         reconstruct_orders=args.reconstruct_components,
          processes=args.processes,
          callback=_star_printer(args.fmt),
-         phases=phases, eigenvectors=eigenvectors,
-         col_std=col_std, col_mean=col_mean,
-         reconstruct_components=args.reconstruct_components,
+         phases=phases,
          output=args.reconstruct_plots)
 
-    if args.eigenvectors:
-        numpy.savetxt(args.eigenvectors, eigenvectors, fmt=args.fmt)
-
 def process_star(star, **kwargs):
-    name, components, lightcurve = star
-    reconstruct_lightcurve(name=name, lc=lightcurve, components=components,
-                           **kwargs)
+    name, components, lightcurve, reconstruct = star
+    plot_lightcurve(name=name, lc=lightcurve, reconstructs=reconstruct,
+                    **kwargs)
     return name, components
 
 def _star_printer(fmt):
     return lambda name_and_components: _print_star(name_and_components, fmt)
-        
+
 def _print_star(name_and_components, fmt):
     name, components = name_and_components
     print(name, ' '.join(fmt % comp for comp in components))

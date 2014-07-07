@@ -2,8 +2,9 @@ import numpy
 import matplotlib.pyplot as plt
 from os import path
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import Normalizer, StandardScaler, scale
+from sklearn.preprocessing import StandardScaler, scale
 from sklearn.decomposition import PCA
+from .preprocessing import Normalizer
 from .utils import make_sure_path_exists
 
 __all__ = [
@@ -20,21 +21,26 @@ def make_pipeline(PCA_method, n_components, whiten, **kwargs):
 
     return pipeline
 
-def pca(X, pipeline):
+def pca(X, pipeline, reconstruct_components):
 #    mean_subtracted_X = scale(X, axis=1, with_mean=True, with_std=False)
 #    pcs = pipeline.fit(mean_subtracted_X).transform(mean_subtracted_X)
     components = pipeline.fit_transform(X)
     eig = pipeline.named_steps['PCA'].components_
-    std = pipeline.named_steps['Standardize'].std_
-    mean = pipeline.named_steps['Standardize'].mean_
-    
-    return components, eig, std, mean
 
-def reconstruct_lightcurve(name, lc, phases, components, eigenvectors,
-                           col_std=0.0, col_mean=0.0,
-                           reconstruct_components=(7,),
-                           period=0.0, data=None, legend=True,
-                           output='.', filetype='.png'):
+    reconstructed_lightcurves = numpy.empty((X.shape[0],
+                                             len(reconstruct_components),
+                                             X.shape[1]),
+                                            dtype=float)
+    
+    for i, n in enumerate(reconstruct_components):
+        pipeline.set_params(PCA__n_components=n)
+        reconstructed_lightcurves[:, i, :] = pipeline.inverse_transform(X)
+
+    return components, eig, reconstructed_lightcurves
+
+def plot_lightcurve(name, lc, phases, reconstructs, reconstruct_orders,
+                    period=0.0, data=None, legend=True,
+                    output='.', filetype='.png'):
     fig = plt.figure()
     ax = fig.gca()
     ax.grid(True)
@@ -50,9 +56,8 @@ def reconstruct_lightcurve(name, lc, phases, components, eigenvectors,
     ## TODO
 
     # Plot reconstructed lightcurves
-    for n in reconstruct_components:
-        rec_lc = numpy.dot(components[:n], eigenvectors[:n,:])
-        ax.plot(two_phases, numpy.hstack((rec_lc, rec_lc)),
+    for n, rec in zip(reconstruct_orders, reconstructs):
+        ax.plot(two_phases, numpy.hstack((rec, rec)),
                 linewidth=1.0, label='{} components'.format(n))
 
     if legend:
